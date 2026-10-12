@@ -3,7 +3,7 @@ import { GameError } from './errors';
 import { handTotal, isBust, isNatural, isPair } from './hand';
 import { randomSeed, seedRng, shuffle, type RngState } from './rng';
 import { validateRules, type RuleSet } from './rules';
-import { createShoe, drawFrom, isPastCutCard, type Shoe } from './shoe';
+import { createShoe, dealtCards, drawFrom, isPastCutCard, type Shoe } from './shoe';
 
 export type Phase = 'betting' | 'insurance' | 'playerTurn' | 'roundOver';
 export type HandStatus = 'active' | 'stood' | 'bust' | 'surrendered' | 'blackjack';
@@ -113,13 +113,29 @@ export function dealerUpcard(state: GameState): Card | null {
   return state.dealer[0] ?? null;
 }
 
+/**
+ * Every card a player at the table has seen since the last shuffle, in deal order:
+ * burn cards and a face-down hole card are excluded. This is what a counter counts.
+ */
+export function visibleCards(state: GameState): readonly Card[] {
+  const hole = state.rules.holeCard === 'peek' && state.phase !== 'roundOver' ? state.dealer[1] : undefined;
+  return dealtCards(state.shoe)
+    .slice(state.shoe.burned)
+    .filter((c) => c.id !== hole?.id);
+}
+
 export function canDouble(state: GameState): boolean {
   const hand = currentHand(state);
   if (!hand || hand.cards.length !== 2 || state.bankroll < hand.baseBet) return false;
   if (hand.fromSplit && !state.rules.doubleAfterSplit) return false;
   if (hand.splitAces && !state.rules.hitSplitAces) return false;
-  const { total, soft } = handTotal(hand.cards);
-  switch (state.rules.doubleOn) {
+  return doubleRuleAllows(state.rules, hand.cards);
+}
+
+/** Whether the table's double-down restriction permits doubling this two-card hand. */
+export function doubleRuleAllows(rules: Pick<RuleSet, 'doubleOn'>, cards: readonly Pick<Card, 'rank'>[]): boolean {
+  const { total, soft } = handTotal(cards);
+  switch (rules.doubleOn) {
     case 'any':
       return true;
     case '9-11':
@@ -462,6 +478,6 @@ function draw(state: GameState): { card: Card; state: GameState } {
   const shuffled = shuffle(discards, state.rng);
   const first = shuffled.items[0];
   if (!first) throw new GameError('ILLEGAL_ACTION', 'no cards left to deal');
-  const shoe: Shoe = { cards: shuffled.items, position: 1, cutCardIndex: 0 };
+  const shoe: Shoe = { cards: shuffled.items, position: 1, cutCardIndex: 0, burned: 0 };
   return { card: first, state: { ...state, shoe, rng: shuffled.state } };
 }

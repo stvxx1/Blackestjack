@@ -8,6 +8,8 @@ export interface Shoe {
   readonly position: number;
   /** Once `position` reaches this index the current round finishes and the shoe is reshuffled. */
   readonly cutCardIndex: number;
+  /** Cards burned face-down after the shuffle; they occupy the front of `cards`. */
+  readonly burned: number;
 }
 
 export function createShoe(
@@ -20,15 +22,16 @@ export function createShoe(
   const lo = Math.floor(total * min);
   const hi = Math.floor(total * max);
   const cut = nextInt(shuffled.state, hi - lo + 1);
+  const burned = Math.min(rules.burnCards, total);
   return {
-    shoe: { cards: shuffled.items, position: Math.min(rules.burnCards, total), cutCardIndex: lo + cut.value },
+    shoe: { cards: shuffled.items, position: burned, cutCardIndex: lo + cut.value, burned },
     rng: cut.state,
   };
 }
 
 /** A shoe dealt in exactly the given order, for tests and replays. */
 export function stackedShoe(cards: readonly Card[], cutCardIndex = cards.length): Shoe {
-  return { cards, position: 0, cutCardIndex };
+  return { cards, position: 0, cutCardIndex, burned: 0 };
 }
 
 export function cardsRemaining(shoe: Shoe): number {

@@ -1,7 +1,8 @@
-import { cardValue, type Card, type CardValue } from './cards';
+import { cardValue, type Card, type CardValue, type Rank } from './cards';
+import { evaluateMoves, fullComposition, removeFromComposition } from './ev';
+import { doubleRuleAllows, type PlayerMove } from './game';
 import { handTotal, pairValue } from './hand';
 import type { RuleSet } from './rules';
-import type { PlayerMove } from './game';
 
 /**
  * Chart codes, as on a printed strategy card:
@@ -135,24 +136,108 @@ function buildChart(rules: RuleSet): StrategyChart {
   return c;
 }
 
-const chartCache = new WeakMap<RuleSet, StrategyChart>();
+/** Where a rule set's chart comes from. */
+export type ChartSource = 'tables' | 'computed';
 
-/** The full chart for a rule set, ready for display or lookup. */
+/**
+ * 4-8 deck games use the classic tables (verified cell-by-cell against the EV solver in
+ * the test suite). Single- and double-deck strategy shifts with every card removed, so
+ * those charts are computed from the solver, weighting each two-card hand by how often
+ * it is dealt.
+ */
+export function chartSource(rules: RuleSet): ChartSource {
+  return rules.decks >= 4 ? 'tables' : 'computed';
+}
+
+const CACHE_LIMIT = 16;
+const chartCache = new Map<string, StrategyChart>();
+
+/** The full chart for a rule set, ready for display or lookup. Cached per rule values. */
 export function strategyChart(rules: RuleSet): StrategyChart {
-  let chart = chartCache.get(rules);
+  const key = JSON.stringify({ ...rules, name: '', minBet: 0, maxBet: 0, penetration: 0, burnCards: 0 });
+  let chart = chartCache.get(key);
   if (!chart) {
-    chart = buildChart(rules);
-    chartCache.set(rules, chart);
+    chart = chartSource(rules) === 'tables' ? buildChart(rules) : computeChart(rules);
+    if (chartCache.size >= CACHE_LIMIT) chartCache.delete(chartCache.keys().next().value ?? '');
+    chartCache.set(key, chart);
   }
   return chart;
 }
 
-/**
- * The charts are exact for 4-8 decks. Single- and double-deck games differ in a
- * handful of cells and will get their own tables from the combinatorial solver.
- */
-export function chartIsExactFor(rules: RuleSet): boolean {
-  return rules.decks >= 4;
+type Pair = readonly [CardValue, CardValue];
+const RANK_OF: Readonly<Record<CardValue, Rank>> = { 1: 'A', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: '10' };
+
+function computeChart(rules: RuleSet): StrategyChart {
+  const hardCombos = new Map<number, Pair[]>();
+  const softCombos = new Map<number, Pair[]>();
+  for (let a = 2; a <= 10; a++) {
+    for (let b = a + 1; b <= 10; b++) {
+      const t = a + b;
+      hardCombos.set(t, [...(hardCombos.get(t) ?? []), [a, b] as Pair]);
+    }
+  }
+  // Hard 4 and hard 20 only arise from pairs; chart them as unsplittable pairs.
+  hardCombos.set(4, [[2, 2]]);
+  hardCombos.set(20, [[10, 10]]);
+  for (let x = 2; x <= 10; x++) softCombos.set(11 + x, [[1, x as CardValue]]);
+
+  const solveRow = (combos: readonly Pair[], allowSplit: boolean): StrategyCode[] =>
+    UPCARDS.map((up) => solveCell(rules, combos, up, allowSplit));
+
+  const hard = new Map<number, StrategyCode[]>();
+  for (let t = 4; t <= 20; t++) {
+    const combos = hardCombos.get(t);
+    hard.set(t, combos ? solveRow(combos, false) : all('H'));
+  }
+  hard.set(21, all('S'));
+  const soft = new Map<number, StrategyCode[]>();
+  for (const [t, combos] of softCombos) soft.set(t, solveRow(combos, false));
+  soft.set(21, all('S'));
+  const pairs = new Map<CardValue, StrategyCode[]>();
+  for (let v = 1; v <= 10; v++) {
+    if (v !== 5) pairs.set(v as CardValue, solveRow([[v as CardValue, v as CardValue]], true));
+  }
+  return { hard, soft, pairs };
+}
+
+function solveCell(rules: RuleSet, combos: readonly Pair[], up: CardValue, allowSplit: boolean): StrategyCode {
+  const comp = removeFromComposition(fullComposition(rules.decks), [up]);
+  const totals = new Map<PlayerMove, number>();
+  let weightSum = 0;
+  for (const [a, b] of combos) {
+    const na = comp[a - 1] ?? 0;
+    const nb = (comp[b - 1] ?? 0) - (a === b ? 1 : 0);
+    const weight = na * nb * (a === b ? 1 : 2);
+    if (weight <= 0) continue;
+    const hand = [{ rank: RANK_OF[a] }, { rank: RANK_OF[b] }];
+    const available: PlayerMove[] = ['hit', 'stand'];
+    if (doubleRuleAllows(rules, hand)) available.push('double');
+    if (allowSplit) available.push('split');
+    if (rules.surrender !== 'none') available.push('surrender');
+    for (const { move, ev } of evaluateMoves({ cards: hand, dealerUpcard: up, rules, available })) {
+      totals.set(move, (totals.get(move) ?? 0) + weight * ev);
+    }
+    weightSum += weight;
+  }
+  const ranked = [...totals].map(([move, ev]) => ({ move, ev: ev / weightSum })).sort((x, y) => y.ev - x.ev);
+  const bestOf = (moves: readonly PlayerMove[]): PlayerMove =>
+    ranked.find((r) => moves.includes(r.move))?.move ?? 'stand';
+
+  const top = ranked[0]?.move ?? 'stand';
+  switch (top) {
+    case 'hit':
+      return 'H';
+    case 'stand':
+      return 'S';
+    case 'split':
+      return 'P';
+    case 'double':
+      return bestOf(['hit', 'stand']) === 'hit' ? 'D' : 'Ds';
+    case 'surrender': {
+      const fallback = bestOf(['hit', 'stand', 'split']);
+      return fallback === 'hit' ? 'Rh' : fallback === 'stand' ? 'Rs' : 'Rp';
+    }
+  }
 }
 
 export interface StrategyInput {

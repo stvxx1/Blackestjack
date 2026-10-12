@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { RANKS, type CardValue, type Rank } from './cards';
 import type { PlayerMove } from './game';
 import { AU_CASINO, ATLANTIC_CITY, VEGAS_DOWNTOWN_H17, VEGAS_STRIP, type RuleSet } from './rules';
-import { basicStrategy, chartIsExactFor, strategyChart, UPCARDS } from './strategy';
+import { basicStrategy, chartSource, strategyChart, UPCARDS } from './strategy';
 import { cards } from './test-utils';
 
 const FRESH: readonly PlayerMove[] = ['hit', 'stand', 'double', 'split', 'surrender'];
@@ -133,16 +133,37 @@ describe('chart completeness', () => {
     }
   });
 
-  it('caches charts per rule set', () => {
-    expect(strategyChart(VEGAS_STRIP)).toBe(strategyChart(VEGAS_STRIP));
-  });
-
-  it('flags single- and double-deck games as approximate', () => {
-    expect(chartIsExactFor(VEGAS_STRIP)).toBe(true);
-    expect(chartIsExactFor({ ...VEGAS_STRIP, decks: 2 })).toBe(false);
+  it('caches charts per rule values, not object identity', () => {
+    expect(strategyChart(VEGAS_STRIP)).toBe(strategyChart({ ...VEGAS_STRIP, name: 'renamed' }));
+    expect(strategyChart(VEGAS_STRIP)).not.toBe(strategyChart(VEGAS_DOWNTOWN_H17));
   });
 
   it('accepts a card as the upcard', () => {
     expect(basicStrategy({ cards: cards('10', '6'), dealerUpcard: { rank: 'K' }, rules: VEGAS_STRIP, available: FRESH }).move).toBe('surrender');
+  });
+});
+
+describe('computed charts for single- and double-deck games', () => {
+  const SINGLE: RuleSet = { ...VEGAS_STRIP, name: 'Single deck S17 DAS', decks: 1, surrender: 'none' };
+
+  it('uses tables for 4+ decks and the solver below that', () => {
+    expect(chartSource(VEGAS_STRIP)).toBe('tables');
+    expect(chartSource(SINGLE)).toBe('computed');
+    expect(chartSource({ ...SINGLE, decks: 2 })).toBe('computed');
+  });
+
+  it.each([
+    [['6', '5'], 1, 'double'], // 11 v A doubles in single deck even at S17
+    [['5', '4'], 2, 'double'],
+    [['A', '8'], 6, 'double'],
+    [['3', '3'], 8, 'split'],
+    [['4', '4'], 4, 'split'],
+    [['6', '6'], 7, 'split'],
+    [['7', '7'], 10, 'stand'],
+    [['10', '6'], 10, 'hit'],
+    [['10', '2'], 4, 'stand'],
+    [['A', '7'], 9, 'hit'],
+  ] as const)('single deck: %j vs %i -> %s', (hand, up, move) => {
+    expect(advise(SINGLE, [...hand], up, NO_SURRENDER)).toBe(move);
   });
 });

@@ -106,7 +106,18 @@ export const VEGAS_DOWNTOWN_H17: RuleSet = {
   resplitAces: false,
 };
 
-export const RULE_PRESETS = [AU_CASINO, VEGAS_STRIP, ATLANTIC_CITY, VEGAS_DOWNTOWN_H17] as const;
+export const RULE_PRESETS = {
+  'au-casino': AU_CASINO,
+  'vegas-strip': VEGAS_STRIP,
+  'atlantic-city': ATLANTIC_CITY,
+  'vegas-downtown-h17': VEGAS_DOWNTOWN_H17,
+} as const satisfies Record<string, RuleSet>;
+
+export type PresetId = keyof typeof RULE_PRESETS;
+
+export function isPresetId(value: unknown): value is PresetId {
+  return typeof value === 'string' && Object.hasOwn(RULE_PRESETS, value);
+}
 
 export function validateRules(rules: RuleSet): RuleSet {
   const fail = (msg: string): never => {
