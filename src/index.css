@@ -1,0 +1,38 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-felt-950: #04170f;
+  --color-felt-900: #082a1c;
+  --color-felt-800: #0b3d2a;
+  --color-felt-700: #0f5138;
+  --color-felt-600: #146a49;
+  --color-brass-300: #f2d48a;
+  --color-brass-400: #e3bb5a;
+  --color-brass-500: #c99a32;
+  --color-card: #fbfaf6;
+  --color-card-red: #c0262d;
+  --color-card-black: #16161a;
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-felt-950 text-white antialiased font-sans;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brass-400;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
