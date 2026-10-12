@@ -10,7 +10,8 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   test: {
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
+    setupFiles: ['src/test/setup.ts'],
     coverage: {
       include: ['src/engine/**'],
       exclude: ['src/engine/**/*.test.ts', 'src/engine/test-utils.ts', 'src/engine/index.ts'],

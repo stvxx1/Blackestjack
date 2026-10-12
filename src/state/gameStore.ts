@@ -29,6 +29,7 @@ import {
   type PresetId,
   type SessionStats,
 } from '@/engine';
+import { money } from '@/lib/format';
 import { browserStorage } from '@/services/storage';
 import { countInfo, countingSystem, isCountingSystemId, unseenComposition, type CountInfo, type CountingSystemId } from './count';
 
@@ -66,13 +67,13 @@ export interface GameStoreState {
   readonly feedback: DecisionFeedback | null;
   readonly error: string | null;
 
-  setBet(cents: number): void;
-  deal(): void;
-  act(move: PlayerMove): void;
-  insurance(take: boolean): void;
-  resetBankroll(cents?: number): void;
-  updateSettings(patch: Partial<GameSettings>): void;
-  clearError(): void;
+  readonly setBet: (cents: number) => void;
+  readonly deal: () => void;
+  readonly act: (move: PlayerMove) => void;
+  readonly insurance: (take: boolean) => void;
+  readonly resetBankroll: (cents?: number) => void;
+  readonly updateSettings: (patch: Partial<GameSettings>) => void;
+  readonly clearError: () => void;
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -169,9 +170,10 @@ export function createGameStore(options: GameStoreOptions = {}): StoreApi<GameSt
           error: null,
 
           setBet: (cents) => {
+            // Anything from nothing up to what the table and bankroll allow; the minimum
+            // is enforced when dealing so chips can be stacked up from zero.
             const { rules, bankroll } = get().game;
-            const clamped = Math.max(rules.minBet, Math.min(rules.maxBet, Math.round(cents)));
-            set({ bet: Math.min(clamped, Math.max(bankroll, rules.minBet)), error: null });
+            set({ bet: Math.max(0, Math.min(rules.maxBet, bankroll, Math.round(cents))), error: null });
           },
 
           deal: () => {
@@ -180,7 +182,12 @@ export function createGameStore(options: GameStoreOptions = {}): StoreApi<GameSt
               set({ error: 'Bankroll is below the table minimum. Reset it to keep playing.' });
               return;
             }
-            const next = run({ type: 'deal', bet: Math.min(bet, game.bankroll) });
+            const wager = Math.min(bet, game.bankroll);
+            if (wager < game.rules.minBet) {
+              set({ error: `Table minimum is ${money(game.rules.minBet)}. Add some chips.` });
+              return;
+            }
+            const next = run({ type: 'deal', bet: wager });
             if (next) set({ game: next, stats: settleIfDone(game, next, stats), feedback: null, error: null });
           },
 

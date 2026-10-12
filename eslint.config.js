@@ -30,4 +30,12 @@ export default tseslint.config(
     },
   },
   { files: ['eslint.config.js'], ...tseslint.configs.disableTypeChecked },
+  {
+    files: ['e2e/**/*.mjs'],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      globals: globals.node,
+      parserOptions: { ...tseslint.configs.disableTypeChecked.languageOptions?.parserOptions },
+    },
+  },
 );

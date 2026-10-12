@@ -27,10 +27,18 @@ describe('game store', () => {
 
   it('clamps bets to the table and the bankroll', () => {
     const store = createGameStore({ storage: memoryStorage(), seed: 1 });
-    store.getState().setBet(1);
-    expect(store.getState().bet).toBe(AU_CASINO.minBet);
+    store.getState().setBet(-5);
+    expect(store.getState().bet).toBe(0);
     store.getState().setBet(10_000_000);
     expect(store.getState().bet).toBe(100_000);
+  });
+
+  it('enforces the table minimum at the deal', () => {
+    const store = createGameStore({ storage: memoryStorage(), seed: 1 });
+    store.getState().setBet(1_000);
+    store.getState().deal();
+    expect(store.getState().error).toBe('Table minimum is $25. Add some chips.');
+    expect(store.getState().game.phase).toBe('betting');
   });
 
   it('plays a round and records it', () => {

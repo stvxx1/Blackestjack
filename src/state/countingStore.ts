@@ -45,13 +45,13 @@ export interface CountingTrainerState {
   readonly lastOutcome: DrillOutcome | null;
   readonly stats: Readonly<Record<CountingDrillKind, DrillKindStats>>;
 
-  start(kind: CountingDrillKind): void;
+  readonly start: (kind: CountingDrillKind) => void;
   /** Grades the active drill. The UI measures `elapsedMs`; the store holds no timers. */
-  submit(answer: number | string, elapsedMs: number): void;
-  setSystem(system: CountingSystemId): void;
-  setPreset(presetId: PresetId): void;
-  setRunLength(cards: number): void;
-  resetStats(): void;
+  readonly submit: (answer: number | string, elapsedMs: number) => void;
+  readonly setSystem: (system: CountingSystemId) => void;
+  readonly setPreset: (presetId: PresetId) => void;
+  readonly setRunLength: (cards: number) => void;
+  readonly resetStats: () => void;
 }
 
 const EMPTY_KIND: DrillKindStats = { attempts: 0, correct: 0, bestMs: null, totalMs: 0 };

@@ -8,6 +8,8 @@ npm run dev        # app
 npm test           # engine test suite
 npm run coverage   # with coverage thresholds
 npm run lint && npm run typecheck
+npm run build && npm run preview   # then, in another shell:
+CHROMIUM_PATH=/path/to/chrome npm run e2e   # browser smoke test
 ```
 
 ## Layout
@@ -16,8 +18,10 @@ npm run lint && npm run typecheck
 | --- | --- |
 | `src/engine` | Pure TypeScript game logic. No React, DOM or state libraries (enforced by ESLint). |
 | `src/state` | Zustand stores: live game + coaching, strategy trainer, counting trainer. Persisted. |
-| `src/services` | Storage (localStorage with in-memory fallback); audio/analytics land in Phase 4. |
-| `src/components` | Atomic design: atoms → molecules → organisms → templates (Phase 4). |
+| `src/services` | Storage (localStorage with in-memory fallback), Web Audio sounds, haptics. |
+| `src/components` | Atomic design: atoms → molecules → organisms → templates. |
+| `src/hooks`, `src/lib` | Hotkeys, hash routing, staged dealer reveal; AUD formatting, chips, card text. |
+| `e2e` | Playwright smoke test: every route at phone and desktop widths, keyboard-only play. |
 
 ## Engine at a glance
 
@@ -53,3 +57,24 @@ validated field by field on load; anything malformed falls back to defaults. The
 state is plain data, so a round in progress survives a reload. The coach grades with pure basic
 strategy, or with index plays at the live Hi-Lo true count when `useDeviations` is on — in which
 case mistakes are priced against the shoe as the player has seen it.
+
+## UI
+
+Five hash routes — `#/table`, `#/trainer`, `#/counting`, `#/stats`, `#/settings` — in an app
+shell with a top nav on desktop and a bottom tab bar on phones.
+
+- **Table** — felt with the live rules printed in an arc, shoe and discard tray drawn to scale
+  (with the cut card), chip rack, per-hand stakes and outcome ribbons. Cards deal from the shoe in
+  real order; the engine settles a round instantly and the dealer's draws are replayed one by
+  one, with the header bankroll holding the payout back until they land. Optional count HUD and
+  move hints. Every action has a key (see Settings → Keyboard); everything is narrated through a
+  polite live region.
+- **Trainer** — weakness-weighted flash hands, instant grading with the EV of each option, and the
+  live strategy chart for the chosen rules with the drilled cell outlined.
+- **Counting** — running count flash (adjustable speed and length), true count conversion, deck
+  countdown, and Hi-Lo index-play drills, each timed with best/average times.
+- **Stats** — session results, decision accuracy, EV lost, drill accuracy and the mistake log.
+
+Strategy chart colours: a validated three-hue set (stand / double / split) plus neutral for hit
+and a hatched texture for surrender; every cell also carries its letter code, so colour never
+carries meaning alone. Animations respect `prefers-reduced-motion`.

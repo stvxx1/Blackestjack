@@ -1,14 +1,37 @@
-import { AU_CASINO, strategyChart } from '@/engine';
+import { MotionConfig } from 'framer-motion';
+import { useEffect } from 'react';
+import { AppShell } from '@/components/templates/AppShell';
+import { BlackjackTable } from '@/components/organisms/BlackjackTable';
+import { CountingDrills } from '@/components/organisms/CountingDrills';
+import { SettingsPanel } from '@/components/organisms/SettingsPanel';
+import { StatsPanel } from '@/components/organisms/StatsPanel';
+import { StrategyTrainer } from '@/components/organisms/StrategyTrainer';
+import { useHashRoute, type Route } from '@/hooks/useHashRoute';
 
-/** Placeholder shell until the table UI lands in Phase 4. */
+const TITLES: Record<Route, string> = {
+  table: 'Table',
+  trainer: 'Strategy trainer',
+  counting: 'Counting drills',
+  stats: 'Stats',
+  settings: 'Settings',
+};
+
 export function App() {
-  const chart = strategyChart(AU_CASINO);
+  const route = useHashRoute();
+  useEffect(() => {
+    document.title = `${TITLES[route]} · BlackjackWiz`;
+  }, [route]);
+
   return (
-    <main className="min-h-dvh bg-[radial-gradient(ellipse_at_top,var(--color-felt-600),var(--color-felt-900)_70%)] px-4 py-10">
-      <h1 className="font-display text-4xl text-brass-300">BlackjackWiz</h1>
-      <p className="mt-2 text-white/70">
-        Engine online. Ruleset: {AU_CASINO.name}. Hard chart rows: {chart.hard.size}.
-      </p>
-    </main>
+    // Framer Motion follows the OS "reduce motion" setting for every animation in the app.
+    <MotionConfig reducedMotion="user">
+      <AppShell route={route}>
+        {route === 'table' && <BlackjackTable />}
+        {route === 'trainer' && <StrategyTrainer />}
+        {route === 'counting' && <CountingDrills />}
+        {route === 'stats' && <StatsPanel />}
+        {route === 'settings' && <SettingsPanel />}
+      </AppShell>
+    </MotionConfig>
   );
 }

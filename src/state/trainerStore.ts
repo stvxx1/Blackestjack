@@ -33,10 +33,10 @@ export interface StrategyTrainerState {
   readonly last: GradedDrill | null;
   readonly stats: DrillStats;
 
-  answer(move: PlayerMove): void;
-  setCategory(category: DrillCategory): void;
-  setPreset(presetId: PresetId): void;
-  resetStats(): void;
+  readonly answer: (move: PlayerMove) => void;
+  readonly setCategory: (category: DrillCategory) => void;
+  readonly setPreset: (presetId: PresetId) => void;
+  readonly resetStats: () => void;
 }
 
 const CATEGORIES = new Set<DrillCategory>(['all', 'hard', 'soft', 'pairs']);
